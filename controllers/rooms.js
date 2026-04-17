@@ -159,6 +159,96 @@ exports.getRoomAvailability = async (req, res) => {
 };
 
 // =====================================================
+// GET ROOMS BY COWORKING SPACE
+// GET /api/v1/coworkingspaces/:coworkingId/rooms
+// =====================================================
+exports.getRoomsByCoworking = async (req, res) => {
+  try {
+    console.log("PARAM:", req.params.coworkingId);
+
+    const rooms = await Room.find({
+      coworkingSpace: req.params.coworkingId,
+      status: 'active'
+    });
+
+    return res.status(200).json({
+      success: true,
+      count: rooms.length,
+      data: rooms
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// =====================================================
+// GET SINGLE ROOM WITH AVAILABILITY
+// GET /api/v1/coworkingspaces/:coworkingId/rooms/:roomId?date=YYYY-MM-DD
+// =====================================================
+exports.getRoomByCoworking = async (req, res) => {
+  try {
+    const room = await Room.findOne({
+      _id: req.params.roomId,
+      coworkingSpace: req.params.coworkingId,
+      status: 'active'
+    }).populate('coworkingSpace', 'name district province openTime closeTime');
+
+    if (!room) {
+      return res.status(404).json({ success: false, message: "Room not found" });
+    }
+
+    // If date provided, attach availability (reuse your existing logic)
+    if (req.query.date) {
+      const space = room.coworkingSpace;
+      const slots = await generateDailySlots(
+        room._id,
+        req.query.date,
+        space?.openTime || '08:00',
+        space?.closeTime || '20:00'
+      );
+
+      const reservations = await Reservation.find({
+        room: room._id,
+        status: { $in: ['pending', 'success'] }
+      });
+
+      const bookedSlotIds = new Set(
+        reservations.flatMap(r => r.timeSlots.map(id => id.toString()))
+      );
+
+      const slotData = slots.map(slot => {
+        const isBooked = bookedSlotIds.has(slot._id.toString());
+        const hour = new Date(slot.startTime).getHours();
+        let price = room.price;
+        if (hour >= 12 && hour <= 17) price *= 1.5;
+        else if (hour >= 18) price *= 1.2;
+
+        return {
+          timeSlotId: slot._id,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          status: isBooked ? 'booked' : 'available',
+          price: Math.round(price)
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        data: { ...room.toObject(), slots: slotData }
+      });
+    }
+
+    return res.status(200).json({ success: true, data: room });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// =====================================================
 // UPDATE ROOM
 // =====================================================
 exports.updateRoom = async (req, res) => {

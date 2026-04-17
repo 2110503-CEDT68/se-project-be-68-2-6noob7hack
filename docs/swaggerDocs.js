@@ -949,7 +949,119 @@
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+// ============================================================
+// NESTED ROOM ROUTES (under coworking spaces)
+// ============================================================
 
+/**
+ * @swagger
+ * /coworkingspaces/{coworkingId}/rooms:
+ *   get:
+ *     tags: [Rooms]
+ *     summary: Get all active rooms in a specific coworking space
+ *     parameters:
+ *       - in: path
+ *         name: coworkingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Coworking space ID
+ *         example: "664abc123def456ghi789jkl"
+ *     responses:
+ *       200:
+ *         description: List of active rooms in the coworking space
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 count:
+ *                   type: integer
+ *                   example: 3
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Room'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /coworkingspaces/{coworkingId}/rooms/{roomId}:
+ *   get:
+ *     tags: [Rooms]
+ *     summary: Get a single room in a coworking space with optional availability
+ *     description: |
+ *       Returns room details. If `date` query param is provided, also returns
+ *       time slots with availability and dynamic pricing:
+ *       - **Base price**: 00:00–11:59
+ *       - **Peak price (×1.5)**: 12:00–17:59
+ *       - **Evening price (×1.2)**: 18:00–23:59
+ *     parameters:
+ *       - in: path
+ *         name: coworkingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Coworking space ID
+ *         example: "664abc123def456ghi789jkl"
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Room ID
+ *         example: "664def456ghi789jkl123abc"
+ *       - in: query
+ *         name: date
+ *         required: false
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Date to check availability (YYYY-MM-DD). If omitted, only room info is returned.
+ *         example: "2025-04-12"
+ *     responses:
+ *       200:
+ *         description: Room details (with slots if date provided)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   allOf:
+ *                     - $ref: '#/components/schemas/Room'
+ *                     - type: object
+ *                       properties:
+ *                         slots:
+ *                           type: array
+ *                           description: Only present when date query param is provided
+ *                           items:
+ *                             $ref: '#/components/schemas/SlotAvailability'
+ *       404:
+ *         description: Room not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 // ============================================================
 // TIME SLOTS
 // ============================================================
