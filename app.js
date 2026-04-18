@@ -43,34 +43,31 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 // =====================================================
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://your-frontend.vercel.app", // 🔥 CHANGE THIS
+  "https://6-noob7-hack-frontend.vercel.app", // 🔥 CHANGE THIS
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow requests with no origin (mobile apps, curl, postman)
+      // allow no-origin (Postman, mobile apps)
       if (!origin) return callback(null, true);
 
-      // allow Vercel preview URLs
+      // allow all Vercel preview deployments
       if (origin.includes(".vercel.app")) {
         return callback(null, true);
       }
 
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
-      } else {
-        return callback(new Error("Not allowed by CORS"));
       }
+
+      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
-// 🔥 VERY IMPORTANT (preflight)
-app.options("*", cors());
 
 // =====================================================
 // Middleware
@@ -93,4 +90,7 @@ app.use("/api/v1/rooms", rooms);
 app.use("/api/v1/timeslots", timeslots);
 app.use("/api/v1/reservations", reservations);
 
+// =====================================================
+// Export (NO app.listen for Vercel)
+// =====================================================
 module.exports = app;
