@@ -2,12 +2,12 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 // =====================================================
-// Protect routes
+// Protect routes — supports BOTH header & cookie
 // =====================================================
 exports.protect = async (req, res, next) => {
     let token;
 
-    // Get token from header
+    // 1) Authorization header (Bearer token)
     if (
         req.headers.authorization &&
         req.headers.authorization.startsWith('Bearer')
@@ -15,11 +15,16 @@ exports.protect = async (req, res, next) => {
         token = req.headers.authorization.split(' ')[1];
     }
 
-    // No token
+    // 2) Cookie fallback
+    else if (req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    }
+
+    // No token found
     if (!token) {
         return res.status(401).json({
             success: false,
-            message: 'Not authorized to access this route'
+            message: 'Not authorized, no token provided'
         });
     }
 
@@ -27,7 +32,7 @@ exports.protect = async (req, res, next) => {
         // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Attach user (IMPORTANT: exclude password)
+        // Get user (exclude password for safety)
         const user = await User.findById(decoded.id).select('-password');
 
         if (!user) {
@@ -37,12 +42,13 @@ exports.protect = async (req, res, next) => {
             });
         }
 
+        // Attach user to request
         req.user = user;
 
         next();
 
     } catch (err) {
-        console.error(err.message);
+        console.error('Auth error:', err.message);
 
         return res.status(401).json({
             success: false,
@@ -57,7 +63,7 @@ exports.protect = async (req, res, next) => {
 exports.authorize = (...roles) => {
     return (req, res, next) => {
 
-        // Safety check (protect must run first)
+        // Ensure protect() ran first
         if (!req.user) {
             return res.status(401).json({
                 success: false,
@@ -65,10 +71,11 @@ exports.authorize = (...roles) => {
             });
         }
 
+        // Check role
         if (!roles.includes(req.user.role)) {
             return res.status(403).json({
                 success: false,
-                message: `User role '${req.user.role}' is not authorized`
+                message: `Role '${req.user.role}' is not authorized`
             });
         }
 

@@ -10,7 +10,7 @@ const reservations = require("./routes/reservations");
 const auth = require("./routes/auth");
 const rooms = require("./routes/rooms");
 const timeslots = require("./routes/timeslots");
-
+const payments = require('./routes/payments');
 const app = express();
 
 // =====================================================
@@ -43,32 +43,24 @@ const swaggerDocs = swaggerJsDoc(swaggerOptions);
 // =====================================================
 const allowedOrigins = [
   "http://localhost:3000",
+  "http://localhost:5000",
   "https://6-noob7-hack-frontend.vercel.app", // 🔥 CHANGE THIS
 ];
 
-app.use(
-  cors({
+app.use(cors({
     origin: function (origin, callback) {
-      // allow no-origin (Postman, mobile apps)
-      if (!origin) return callback(null, true);
 
-      // allow all Vercel preview deployments
-      if (origin.includes(".vercel.app")) {
-        return callback(null, true);
-      }
+        // ✅ allow requests with no origin (Postman, curl, Swagger)
+        if (!origin) return callback(null, true);
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
 
-      return callback(new Error("Not allowed by CORS"));
+        return callback(new Error('Not allowed by CORS'));
     },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-
+    credentials: true
+}));
 // =====================================================
 // Middleware
 // =====================================================
@@ -89,7 +81,7 @@ app.use("/api/v1/coworkingspaces", coworkingspaces);
 app.use("/api/v1/rooms", rooms);
 app.use("/api/v1/timeslots", timeslots);
 app.use("/api/v1/reservations", reservations);
-
+app.use('/api/v1/payments', payments);
 // =====================================================
 // Export (NO app.listen for Vercel)
 // =====================================================

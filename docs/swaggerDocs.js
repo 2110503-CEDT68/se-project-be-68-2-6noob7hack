@@ -1403,3 +1403,370 @@
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+// ============================================================
+// PAYMENTS
+// ============================================================
+/**
+ * @swagger
+ * tags:
+ *   - name: Payments
+ *     description: Payment processing (QR, Cash)
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Payment:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *         reservation:
+ *           type: string
+ *         user:
+ *           type: string
+ *         amount:
+ *           type: number
+ *         method:
+ *           type: string
+ *           enum: [qr, cash]
+ *         status:
+ *           type: string
+ *           enum: [pending, completed, failed]
+ *         transactionId:
+ *           type: string
+ *           nullable: true
+ *         qrImageBase64:
+ *           type: string
+ *           nullable: true
+ *         qrExpiresAt:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *         cashConfirmedBy:
+ *           type: string
+ *           nullable: true
+ *         cashConfirmedAt:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     PaymentResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *         data:
+ *           $ref: '#/components/schemas/Payment'
+ *
+ *     PaymentError:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: false
+ *         message:
+ *           type: string
+ *           example: Error message
+ */
+
+/**
+ * @swagger
+ * /payments:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Create a payment for a reservation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reservationId, method]
+ *             properties:
+ *               reservationId:
+ *                 type: string
+ *                 example: "664abc123def456ghi789jkl"
+ *               method:
+ *                 type: string
+ *                 enum: [qr, cash]
+ *                 example: "qr"
+ *     responses:
+ *       201:
+ *         description: Payment created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     paymentId:
+ *                       type: string
+ *                     reservationId:
+ *                       type: string
+ *                     amount:
+ *                       type: number
+ *                     method:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *       400:
+ *         description: Invalid input or duplicate payment
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaymentError'
+ *       403:
+ *         description: Not authorized
+ */
+
+/**
+ * @swagger
+ * /payments/{id}:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get a payment (owner or admin)
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaymentResponse'
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/confirm:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Confirm payment (generic)
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Payment confirmed
+ *       400:
+ *         description: Invalid status
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/fail:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Mark payment as failed
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Payment marked as failed
+ *       400:
+ *         description: Invalid status
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/qr:
+ *   post:
+ *     tags: [Payments]
+ *     summary: Generate QR code for payment
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: QR generated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 paymentId:
+ *                   type: string
+ *                 qrImage:
+ *                   type: string
+ *                   example: "data:image/png;base64,..."
+ *                 expiresAt:
+ *                   type: string
+ *                   format: date-time
+ *                 expiresInSec:
+ *                   type: number
+ *       400:
+ *         description: Invalid payment state
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Payment not found
+ */
+/**
+ * @swagger
+ * /payments/{id}/confirm-qr:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Confirm QR payment (after scan)
+ *     description: |
+ *       Confirms a QR payment using a qrId generated earlier.
+ *       The system will verify that the QR is valid, not expired, and not reused.
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - qrId
+ *             properties:
+ *               qrId:
+ *                 type: string
+ *                 example: "664abc123def456ghi789xyz"
+ *                 description: ID of the QR code record
+ *     responses:
+ *       200:
+ *         description: QR payment confirmed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     paymentId:
+ *                       type: string
+ *                     transactionId:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                       example: completed
+ *       400:
+ *         description: QR expired, already used, or invalid state
+ *       404:
+ *         description: Payment or QR record not found
+ *       403:
+ *         description: Not authorized
+ */
+/**
+ * @swagger
+ * /payments/{id}/qr-status:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Check QR validity and countdown
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: QR status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 paymentStatus:
+ *                   type: string
+ *                 qrExpired:
+ *                   type: boolean
+ *                 secondsLeft:
+ *                   type: number
+ *                 expiresAt:
+ *                   type: string
+ *                   format: date-time
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/confirm-cash:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Admin confirms cash payment
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Cash payment confirmed
+ *       400:
+ *         description: Invalid state
+ *       403:
+ *         description: Admin only
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/pending-cash:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get all pending cash payments (Admin dashboard)
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending cash payments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: number
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Payment'
+ *       403:
+ *         description: Admin only
+ */
