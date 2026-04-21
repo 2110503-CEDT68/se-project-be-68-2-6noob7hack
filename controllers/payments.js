@@ -4,10 +4,8 @@ const Payment     = require('../models/Payment');
 const Reservation = require('../models/Reservation');
 const QrCode      = require('../models/QrCode');
 const Room        = require('../models/Room');
-const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
-const AdminQrCode = require('../models/AdminQrCode');
-const multer      = require('multer');
+const { randomUUID } = require('crypto');
 
 // multer memory storage (ไม่เขียนลง disk)
 const upload = multer({
@@ -168,7 +166,7 @@ exports.confirmPayment = async (req, res) => {
             });
         }
 
-        const transactionId = `TXN-${uuidv4().toUpperCase()}`;
+        const transactionId = `TXN-${randomUUID().toUpperCase()}`;
 
         payment.status        = 'completed';
         payment.transactionId = transactionId;
@@ -319,8 +317,6 @@ exports.generateQr = async (req, res) => {
 // =====================================================
 // US2-2
 // @desc    Verify & confirm QR payment
-//          Caller passes the raw QR payload string (scanned from image)
-//          OR the qrId — controller accepts both.
 // @route   PUT /api/v1/payments/:id/confirm-qr
 // @access  Private (admin or trusted webhook)
 // =====================================================
@@ -343,8 +339,6 @@ exports.confirmQrPayment = async (req, res) => {
             });
         }
 
-        // --- locate the QR record ---
-        //     Accept qrId in body OR fall back to payment.activeQr
         const qrLookupId = req.body.qrId || payment.activeQr;
 
         if (!qrLookupId) {
@@ -360,7 +354,6 @@ exports.confirmQrPayment = async (req, res) => {
             return res.status(404).json({ success: false, message: 'QR record not found' });
         }
 
-        // --- verify QR belongs to this payment ---
         if (qrRecord.payment.toString() !== payment._id.toString()) {
             return res.status(400).json({
                 success: false,
@@ -368,7 +361,6 @@ exports.confirmQrPayment = async (req, res) => {
             });
         }
 
-        // --- check not already used ---
         if (qrRecord.isUsed) {
             return res.status(400).json({
                 success: false,
@@ -376,7 +368,6 @@ exports.confirmQrPayment = async (req, res) => {
             });
         }
 
-        // --- check not expired ---
         if (new Date() > qrRecord.expiresAt) {
             return res.status(400).json({
                 success: false,
@@ -384,7 +375,6 @@ exports.confirmQrPayment = async (req, res) => {
             });
         }
 
-        // --- optional payload verification (if caller sends scanned payload) ---
         if (req.body.payload) {
             if (req.body.payload !== qrRecord.payload) {
                 return res.status(400).json({
@@ -394,15 +384,12 @@ exports.confirmQrPayment = async (req, res) => {
             }
         }
 
-        // --- atomic update ---
-        const transactionId = `TXN-${uuidv4().toUpperCase()}`;
+        const transactionId = `TXN-${randomUUID().toUpperCase()}`;
 
-        // mark QR as used
         qrRecord.isUsed = true;
         qrRecord.usedAt = new Date();
         await qrRecord.save();
 
-        // complete payment
         payment.status        = 'completed';
         payment.transactionId = transactionId;
         payment.activeQr      = null;
@@ -431,7 +418,6 @@ exports.confirmQrPayment = async (req, res) => {
 // =====================================================
 // US2-2
 // @desc    Verify a QR code without confirming payment
-//          Frontend/scanner can call this to pre-validate before confirm
 // @route   POST /api/v1/payments/verify-qr
 // @access  Private (admin or trusted scanner)
 // =====================================================
@@ -446,13 +432,11 @@ exports.verifyQr = async (req, res) => {
             });
         }
 
-        // --- find QR record ---
         let qrRecord;
 
         if (qrId) {
             qrRecord = await QrCode.findById(qrId).populate('payment');
         } else {
-            // look up by stored payload string
             qrRecord = await QrCode.findOne({ payload }).populate('payment');
         }
 
@@ -480,7 +464,6 @@ exports.verifyQr = async (req, res) => {
             });
         }
 
-        // --- payload match check (optional but recommended) ---
         if (payload && payload !== qrRecord.payload) {
             return res.status(400).json({
                 success: false,
@@ -591,7 +574,7 @@ exports.confirmCashPayment = async (req, res) => {
             });
         }
 
-        const transactionId = `TXN-${uuidv4().toUpperCase()}`;
+        const transactionId = `TXN-${randomUUID().toUpperCase()}`;
 
         payment.status          = 'completed';
         payment.transactionId   = transactionId;
@@ -682,7 +665,6 @@ exports.getPayment = async (req, res) => {
 };
 
 // GET /payments/user/:id
-// fetch all payment records for logged-in user (auth required); sorted by date desc
 exports.getPaymentsByUser = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -715,7 +697,6 @@ exports.getPaymentsByUser = async (req, res) => {
 // @desc    Update payment method (only when pending)
 // @route   PUT /api/v1/payments/:id/method
 // @access  Private (owner or admin)
-// Business rule: if payment.status === 'completed' -> cannot change (user sees message)
 // =====================================================
 exports.updatePaymentMethod = async (req, res) => {
     try {
@@ -725,12 +706,10 @@ exports.updatePaymentMethod = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Payment not found' });
         }
 
-        // owner or admin only
         if (payment.user.toString() !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        // Business rules
         if (payment.status === 'completed') {
             return res.status(400).json({ success: false, message: 'Payment already completed. Contact Admin to change.' });
         }
@@ -744,15 +723,12 @@ exports.updatePaymentMethod = async (req, res) => {
             return res.status(400).json({ success: false, message: 'method must be "qr" or "cash"' });
         }
 
-        // update method but keep status as pending
         payment.method = method;
 
-        // if switching away from qr, clear any activeQr reference
         if (method !== 'qr') {
             payment.activeQr = null;
         }
 
-        // if switching away from cash, clear cash confirmation fields (if any)
         if (method !== 'cash') {
             payment.cashConfirmedBy = undefined;
             payment.cashConfirmedAt = undefined;
