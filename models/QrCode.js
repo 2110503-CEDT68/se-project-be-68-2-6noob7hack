@@ -3,53 +3,30 @@ const mongoose = require('mongoose');
 
 const QrCodeSchema = new mongoose.Schema(
     {
-        payment: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Payment',
-            required: true
-        },
         coworkingSpace: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Coworkingspace',
             required: true
         },
-        imageBase64: {
-            type: String,
+        imageData: {
+            type: String,   // Base64 encoded image
             required: true
         },
-        payload: {
-            type: String,   // the raw JSON string encoded in the QR — used for verification
+        mimeType: {
+            type: String,   // 'image/jpeg' | 'image/png' | 'image/webp'
             required: true
         },
-        expiresAt: {
-            type: Date,
-            required: true
-        },
-        usedAt: {
-            type: Date,
-            default: null   // set when scanned & confirmed
-        },
-        isUsed: {
+        isActive: {
             type: Boolean,
-            default: false
+            default: true
         },
-        generatedBy: {
+        uploadedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
             required: true
         }
     },
-    {
-        timestamps: true
-    }
+    { timestamps: true }
 );
-
-// Convenience: check expiry without pulling the whole doc
-QrCodeSchema.virtual('isExpired').get(function () {
-    return new Date() > this.expiresAt;
-});
-
-QrCodeSchema.set('toJSON', { virtuals: true });
-QrCodeSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('QrCode', QrCodeSchema);

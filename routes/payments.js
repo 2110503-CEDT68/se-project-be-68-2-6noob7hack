@@ -5,19 +5,16 @@ const {
     createPayment,
     confirmPayment,
     failPayment,
-    generateQr,
     confirmQrPayment,
-    verifyQr,
-    getQrStatus,
     confirmCashPayment,
     getPendingCashPayments,
     getPayment,
     getPaymentsByUser,
     updatePaymentMethod,
-    uploadAdminQrCode,
+    uploadQrCode,
     uploadQrMiddleware,
-    getAdminQrCode,
-    getAdminQrCodeInfo,
+    getQrCode,
+    getQrCodeInfo,
     adminUpdatePaymentMethod,
     adminCancelPayment
 } = require('../controllers/payments');
@@ -33,12 +30,9 @@ router.put('/:id/fail',           protect, failPayment);
 router.put('/:id/method',        protect, updatePaymentMethod);
 
 // -------------------------------------------------------
-// US2-2  QR payment
+// US2-2  QR payment (using QrCode)
 // -------------------------------------------------------
-router.post('/verify-qr',         protect, verifyQr);            // verify QR without confirming  <-- NEW
-router.post('/:id/qr',            protect, generateQr);
-router.put('/:id/confirm-qr',     protect, confirmQrPayment);
-router.get('/:id/qr-status',      protect, getQrStatus);
+router.put('/:id/confirm-qr',       protect, confirmQrPayment);
 
 // -------------------------------------------------------
 // US2-3  Cash payment
@@ -55,9 +49,9 @@ router.get('/user/:id',           protect, getPaymentsByUser);
 // -------------------------------------------------------
 // US2-7 Admin QR code management
 // -------------------------------------------------------
-router.post('/admin/qr-code',      protect, authorize('admin'), uploadQrMiddleware, uploadAdminQrCode);
-router.get('/admin/qr-code/info',  protect, authorize('admin'), getAdminQrCodeInfo);
-router.get('/admin/qr-code',       protect, getAdminQrCode);
+router.post('/admin/qr-code',      protect, authorize('admin'), uploadQrMiddleware, uploadQrCode);
+router.get('/admin/qr-code/info',  protect, authorize('admin'), getQrCodeInfo);
+router.get('/admin/qr-code',       protect, getQrCode);
 
 router.put('/admin/:id/method',  protect, authorize('admin'), adminUpdatePaymentMethod);
 router.put('/admin/:id/cancel',  protect, authorize('admin'), adminCancelPayment);

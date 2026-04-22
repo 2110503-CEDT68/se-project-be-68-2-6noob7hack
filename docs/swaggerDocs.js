@@ -6,10 +6,6 @@
  *       type: http
  *       scheme: bearer
  *       bearerFormat: JWT
- *     cookieAuth:
- *       type: apiKey
- *       in: cookie
- *       name: token
  *
  *   schemas:
  *     User:
@@ -17,7 +13,7 @@
  *       properties:
  *         id:
  *           type: string
- *           example: "664abc123def456ghi789jkl"
+ *           example: "64abc123def456"
  *         name:
  *           type: string
  *           example: "John Doe"
@@ -29,7 +25,7 @@
  *           example: "0812345678"
  *         numberOfEntries:
  *           type: integer
- *           example: 3
+ *           example: 5
  *         profilePicture:
  *           type: string
  *           nullable: true
@@ -51,22 +47,22 @@
  *           type: string
  *         name:
  *           type: string
- *           example: "HubSpace Bangkok"
+ *           example: "The Hub Coworking"
  *         address:
  *           type: string
- *           example: "123 Silom Rd"
+ *           example: "123 Main Street"
  *         district:
  *           type: string
- *           example: "Bang Rak"
+ *           example: "Pathum Wan"
  *         province:
  *           type: string
  *           example: "Bangkok"
  *         postalcode:
  *           type: string
- *           example: "10500"
+ *           example: "10330"
  *         tel:
  *           type: string
- *           example: "021234567"
+ *           example: "02-123-4567"
  *         region:
  *           type: string
  *           example: "Central"
@@ -79,9 +75,10 @@
  *         picture:
  *           type: string
  *           nullable: true
+ *           example: "https://drive.google.com/..."
  *         caption:
  *           type: string
- *           example: "A modern coworking space in the heart of Bangkok"
+ *           example: "A modern coworking space"
  *
  *     Room:
  *       type: object
@@ -96,13 +93,17 @@
  *           example: 10
  *         price:
  *           type: number
- *           example: 500
+ *           example: 300
  *         coworkingSpace:
  *           type: string
- *           description: CoworkingSpace ID
+ *           example: "64abc123def456"
+ *         picture:
+ *           type: string
+ *           nullable: true
  *         status:
  *           type: string
  *           enum: [active, deleted]
+ *           example: "active"
  *
  *     TimeSlot:
  *       type: object
@@ -111,15 +112,15 @@
  *           type: string
  *         room:
  *           type: string
- *           description: Room ID
+ *           example: "64abc123def456"
  *         startTime:
  *           type: string
  *           format: date-time
- *           example: "2025-04-12T09:00:00.000Z"
+ *           example: "2024-06-01T08:00:00.000Z"
  *         endTime:
  *           type: string
  *           format: date-time
- *           example: "2025-04-12T10:00:00.000Z"
+ *           example: "2024-06-01T09:00:00.000Z"
  *
  *     Reservation:
  *       type: object
@@ -146,6 +147,39 @@
  *         status:
  *           type: string
  *           enum: [pending, success, cancelled]
+ *           example: "pending"
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     Payment:
+ *       type: object
+ *       properties:
+ *         _id:
+ *           type: string
+ *         reservation:
+ *           type: string
+ *         user:
+ *           type: string
+ *         amount:
+ *           type: number
+ *           example: 600
+ *         method:
+ *           type: string
+ *           enum: [qr, cash]
+ *         status:
+ *           type: string
+ *           enum: [pending, completed, failed, cancelled, refund_required, refunded]
+ *         transactionId:
+ *           type: string
+ *           nullable: true
+ *         cashConfirmedBy:
+ *           type: string
+ *           nullable: true
+ *         cashConfirmedAt:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
  *         createdAt:
  *           type: string
  *           format: date-time
@@ -165,10 +199,17 @@
  *           type: string
  *           enum: [available, booked]
  *         price:
- *           type: integer
- *           description: Dynamic price based on time of day
+ *           type: number
+ *           example: 450
  *
- *     Error:
+ *     SuccessResponse:
+ *       type: object
+ *       properties:
+ *         success:
+ *           type: boolean
+ *           example: true
+ *
+ *     ErrorResponse:
  *       type: object
  *       properties:
  *         success:
@@ -176,16 +217,7 @@
  *           example: false
  *         message:
  *           type: string
- *           example: "Error description"
- *
- *     Success:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *           example: true
- *         message:
- *           type: string
+ *           example: "Error message"
  */
 
 // ============================================================
@@ -196,15 +228,17 @@
  * @swagger
  * tags:
  *   - name: Auth
- *     description: Authentication and user profile
- *   - name: Coworking Spaces
+ *     description: Authentication endpoints
+ *   - name: CoworkingSpaces
  *     description: Coworking space management
  *   - name: Rooms
- *     description: Room management and availability
- *   - name: Time Slots
+ *     description: Room management
+ *   - name: TimeSlots
  *     description: Time slot management
  *   - name: Reservations
  *     description: Reservation management
+ *   - name: Payments
+ *     description: Payment management
  */
 
 /**
@@ -256,7 +290,7 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 
 /**
@@ -264,7 +298,7 @@
  * /auth/login:
  *   post:
  *     tags: [Auth]
- *     summary: Login with email and password
+ *     summary: Login user
  *     requestBody:
  *       required: true
  *       content:
@@ -281,7 +315,7 @@
  *                 example: "password123"
  *     responses:
  *       200:
- *         description: Logged in successfully, returns JWT token
+ *         description: Login successful
  *         content:
  *           application/json:
  *             schema:
@@ -293,17 +327,17 @@
  *                 token:
  *                   type: string
  *       400:
- *         description: Missing email or password
+ *         description: Missing credentials
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       401:
  *         description: Invalid credentials
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 
 /**
@@ -311,10 +345,9 @@
  * /auth/me:
  *   get:
  *     tags: [Auth]
- *     summary: Get current logged-in user profile with rank info
+ *     summary: Get current logged-in user profile with rank
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     responses:
  *       200:
  *         description: Current user profile
@@ -333,13 +366,13 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       404:
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 
 /**
@@ -347,17 +380,21 @@
  * /auth/logout:
  *   get:
  *     tags: [Auth]
- *     summary: Logout and clear cookie
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
+ *     summary: Logout user (clears cookie)
  *     responses:
  *       200:
  *         description: Logged out successfully
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Logged out successfully"
  */
 
 /**
@@ -365,10 +402,9 @@
  * /auth/me/photo:
  *   put:
  *     tags: [Auth]
- *     summary: Update profile picture (Google Drive URL)
+ *     summary: Update profile picture URL
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -379,7 +415,7 @@
  *             properties:
  *               profilePicture:
  *                 type: string
- *                 example: "https://drive.google.com/file/d/abc123/view"
+ *                 example: "https://drive.google.com/..."
  *     responses:
  *       200:
  *         description: Profile picture updated
@@ -398,16 +434,10 @@
  *                       type: string
  *       400:
  *         description: Missing picture URL
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: Not authenticated
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: User not found
  */
 
 // ============================================================
@@ -418,21 +448,19 @@
  * @swagger
  * /coworkingspaces:
  *   get:
- *     tags: [Coworking Spaces]
- *     summary: Get all coworking spaces (with filtering, sorting, pagination)
+ *     tags: [CoworkingSpaces]
+ *     summary: Get all coworking spaces (supports filtering, sorting, pagination)
  *     parameters:
  *       - in: query
  *         name: select
  *         schema:
  *           type: string
- *         description: Comma-separated fields to include (e.g. name,district)
- *         example: "name,district,province"
+ *         description: "Comma-separated fields to select (e.g. name,district)"
  *       - in: query
  *         name: sort
  *         schema:
  *           type: string
- *         description: Comma-separated fields to sort by (prefix - for descending)
- *         example: "-createdAt"
+ *         description: "Comma-separated fields to sort by (e.g. name,-createdAt)"
  *       - in: query
  *         name: page
  *         schema:
@@ -447,8 +475,12 @@
  *         name: province
  *         schema:
  *           type: string
- *         description: Filter by province
- *         example: "Bangkok"
+ *         description: "Filter by province"
+ *       - in: query
+ *         name: district
+ *         schema:
+ *           type: string
+ *         description: "Filter by district"
  *     responses:
  *       200:
  *         description: List of coworking spaces
@@ -484,11 +516,10 @@
  *                   items:
  *                     $ref: '#/components/schemas/CoworkingSpace'
  *   post:
- *     tags: [Coworking Spaces]
+ *     tags: [CoworkingSpaces]
  *     summary: Create a new coworking space (Admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -499,22 +530,22 @@
  *             properties:
  *               name:
  *                 type: string
- *                 example: "HubSpace Bangkok"
+ *                 example: "The Hub Coworking"
  *               address:
  *                 type: string
- *                 example: "123 Silom Rd"
+ *                 example: "123 Main Street"
  *               district:
  *                 type: string
- *                 example: "Bang Rak"
+ *                 example: "Pathum Wan"
  *               province:
  *                 type: string
  *                 example: "Bangkok"
  *               postalcode:
  *                 type: string
- *                 example: "10500"
+ *                 example: "10330"
  *               tel:
  *                 type: string
- *                 example: "021234567"
+ *                 example: "02-123-4567"
  *               region:
  *                 type: string
  *                 example: "Central"
@@ -524,6 +555,11 @@
  *               closeTime:
  *                 type: string
  *                 example: "20:00"
+ *               picture:
+ *                 type: string
+ *                 nullable: true
+ *               caption:
+ *                 type: string
  *     responses:
  *       201:
  *         description: Coworking space created
@@ -539,30 +575,16 @@
  *                   $ref: '#/components/schemas/CoworkingSpace'
  *       400:
  *         description: Validation error or duplicate name
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       401:
  *         description: Not authenticated
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       403:
- *         description: Not authorized (admin only)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 
 /**
  * @swagger
  * /coworkingspaces/{id}:
  *   get:
- *     tags: [Coworking Spaces]
- *     summary: Get a single coworking space by ID
+ *     tags: [CoworkingSpaces]
+ *     summary: Get single coworking space by ID
  *     parameters:
  *       - in: path
  *         name: id
@@ -572,7 +594,7 @@
  *         description: Coworking space ID
  *     responses:
  *       200:
- *         description: Coworking space details
+ *         description: Coworking space found
  *         content:
  *           application/json:
  *             schema:
@@ -585,16 +607,11 @@
  *                   $ref: '#/components/schemas/CoworkingSpace'
  *       404:
  *         description: Coworking space not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   put:
- *     tags: [Coworking Spaces]
- *     summary: Update a coworking space (Admin only)
+ *     tags: [CoworkingSpaces]
+ *     summary: Update coworking space (Admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -609,7 +626,7 @@
  *             $ref: '#/components/schemas/CoworkingSpace'
  *     responses:
  *       200:
- *         description: Updated coworking space
+ *         description: Coworking space updated
  *         content:
  *           application/json:
  *             schema:
@@ -620,24 +637,15 @@
  *                   example: true
  *                 data:
  *                   $ref: '#/components/schemas/CoworkingSpace'
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
- *         description: Not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Coworking space not found
+ *       401:
+ *         description: Not authenticated
  *   delete:
- *     tags: [Coworking Spaces]
- *     summary: Delete a coworking space and all its reservations (Admin only)
+ *     tags: [CoworkingSpaces]
+ *     summary: Delete coworking space and its reservations (Admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -646,28 +654,32 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Deleted successfully
+ *         description: Coworking space deleted
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Coworking space deleted successfully"
  *       404:
- *         description: Not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Coworking space not found
+ *       401:
+ *         description: Not authenticated
  */
 
 /**
  * @swagger
  * /coworkingspaces/{id}/photo:
  *   put:
- *     tags: [Coworking Spaces]
- *     summary: Update photo and/or caption of a coworking space (Admin only)
+ *     tags: [CoworkingSpaces]
+ *     summary: Update coworking space photo URL and/or caption (Admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -683,10 +695,10 @@
  *             properties:
  *               picture:
  *                 type: string
- *                 example: "https://drive.google.com/file/d/abc123/view"
+ *                 example: "https://drive.google.com/..."
  *               caption:
  *                 type: string
- *                 example: "A modern coworking space"
+ *                 example: "Beautiful coworking space"
  *     responses:
  *       200:
  *         description: Photo updated
@@ -707,21 +719,147 @@
  *                       type: string
  *       400:
  *         description: No picture or caption provided
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
- *         description: Not found
+ *         description: Coworking space not found
+ */
+
+/**
+ * @swagger
+ * /coworkingspaces/{coworkingId}/rooms:
+ *   get:
+ *     tags: [CoworkingSpaces]
+ *     summary: Get all active rooms for a specific coworking space
+ *     parameters:
+ *       - in: path
+ *         name: coworkingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Coworking space ID
+ *     responses:
+ *       200:
+ *         description: List of rooms
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Room'
+ */
+
+/**
+ * @swagger
+ * /coworkingspaces/{coworkingId}/rooms/{roomId}:
+ *   get:
+ *     tags: [CoworkingSpaces]
+ *     summary: Get a single room within a coworking space, optionally with availability
+ *     parameters:
+ *       - in: path
+ *         name: coworkingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: "Date to check availability (YYYY-MM-DD)"
+ *     responses:
+ *       200:
+ *         description: Room details with optional slot availability
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   allOf:
+ *                     - $ref: '#/components/schemas/Room'
+ *                     - type: object
+ *                       properties:
+ *                         slots:
+ *                           type: array
+ *                           items:
+ *                             $ref: '#/components/schemas/SlotAvailability'
+ *       404:
+ *         description: Room not found
  */
 
 // ============================================================
 // ROOMS
 // ============================================================
+
+/**
+ * @swagger
+ * /rooms/availability:
+ *   get:
+ *     tags: [Rooms]
+ *     summary: Get availability for all active rooms on a specific date (with dynamic pricing)
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: "Date to check availability (YYYY-MM-DD)"
+ *     responses:
+ *       200:
+ *         description: Availability data for all rooms
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 date:
+ *                   type: string
+ *                   example: "2024-06-01"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       roomId:
+ *                         type: string
+ *                       roomName:
+ *                         type: string
+ *                       capacity:
+ *                         type: integer
+ *                       basePrice:
+ *                         type: number
+ *                       coworkingSpace:
+ *                         $ref: '#/components/schemas/CoworkingSpace'
+ *                       slots:
+ *                         type: array
+ *                         items:
+ *                           $ref: '#/components/schemas/SlotAvailability'
+ *       400:
+ *         description: Date is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 
 /**
  * @swagger
@@ -751,7 +889,6 @@
  *     summary: Create a new room (Admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -768,11 +905,14 @@
  *                 example: 10
  *               price:
  *                 type: number
- *                 example: 500
+ *                 example: 300
  *               coworkingSpace:
  *                 type: string
  *                 description: Coworking space ID
- *                 example: "664abc123def456ghi789jkl"
+ *                 example: "64abc123def456"
+ *               picture:
+ *                 type: string
+ *                 nullable: true
  *     responses:
  *       201:
  *         description: Room created
@@ -788,78 +928,12 @@
  *                   $ref: '#/components/schemas/Room'
  *       400:
  *         description: Missing fields or duplicate room name
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
  *       404:
  *         description: Coworking space not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-
-/**
- * @swagger
- * /rooms/availability:
- *   get:
- *     tags: [Rooms]
- *     summary: Get room availability with dynamic pricing for a specific date
- *     description: |
- *       Returns all active rooms with their time slots and booking status for the given date.
- *       Dynamic pricing applies based on time of day:
- *       - **Base price**: 00:00–11:59
- *       - **Peak price (×1.5)**: 12:00–17:59
- *       - **Evening price (×1.2)**: 18:00–23:59
- *     parameters:
- *       - in: query
- *         name: date
- *         required: true
- *         schema:
- *           type: string
- *           format: date
- *         description: Date to check availability (YYYY-MM-DD)
- *         example: "2025-04-12"
- *     responses:
- *       200:
- *         description: Room availability for the date
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 date:
- *                   type: string
- *                   example: "2025-04-12"
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       roomId:
- *                         type: string
- *                       roomName:
- *                         type: string
- *                       capacity:
- *                         type: integer
- *                       basePrice:
- *                         type: number
- *                       coworkingSpace:
- *                         $ref: '#/components/schemas/CoworkingSpace'
- *                       slots:
- *                         type: array
- *                         items:
- *                           $ref: '#/components/schemas/SlotAvailability'
- *       400:
- *         description: Missing date parameter
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 
 /**
@@ -867,16 +941,16 @@
  * /rooms/{id}:
  *   put:
  *     tags: [Rooms]
- *     summary: Update a room (Admin only)
+ *     summary: Update room details (Admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
+ *         description: Room ID
  *     requestBody:
  *       required: true
  *       content:
@@ -892,6 +966,9 @@
  *                 type: number
  *               coworkingSpace:
  *                 type: string
+ *               picture:
+ *                 type: string
+ *                 nullable: true
  *     responses:
  *       200:
  *         description: Room updated
@@ -907,22 +984,17 @@
  *                   $ref: '#/components/schemas/Room'
  *       400:
  *         description: Duplicate room name
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
  *       404:
- *         description: Room not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Room or coworking space not found
  *   delete:
  *     tags: [Rooms]
  *     summary: Soft-delete a room (Admin only) — sets status to 'deleted'
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -935,133 +1007,24 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Room deleted"
  *       400:
  *         description: Room has active reservations
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
  *       404:
  *         description: Room not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-// ============================================================
-// NESTED ROOM ROUTES (under coworking spaces)
-// ============================================================
-
-/**
- * @swagger
- * /coworkingspaces/{coworkingId}/rooms:
- *   get:
- *     tags: [Rooms]
- *     summary: Get all active rooms in a specific coworking space
- *     parameters:
- *       - in: path
- *         name: coworkingId
- *         required: true
- *         schema:
- *           type: string
- *         description: Coworking space ID
- *         example: "664abc123def456ghi789jkl"
- *     responses:
- *       200:
- *         description: List of active rooms in the coworking space
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 count:
- *                   type: integer
- *                   example: 3
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Room'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 
-/**
- * @swagger
- * /coworkingspaces/{coworkingId}/rooms/{roomId}:
- *   get:
- *     tags: [Rooms]
- *     summary: Get a single room in a coworking space with optional availability
- *     description: |
- *       Returns room details. If `date` query param is provided, also returns
- *       time slots with availability and dynamic pricing:
- *       - **Base price**: 00:00–11:59
- *       - **Peak price (×1.5)**: 12:00–17:59
- *       - **Evening price (×1.2)**: 18:00–23:59
- *     parameters:
- *       - in: path
- *         name: coworkingId
- *         required: true
- *         schema:
- *           type: string
- *         description: Coworking space ID
- *         example: "664abc123def456ghi789jkl"
- *       - in: path
- *         name: roomId
- *         required: true
- *         schema:
- *           type: string
- *         description: Room ID
- *         example: "664def456ghi789jkl123abc"
- *       - in: query
- *         name: date
- *         required: false
- *         schema:
- *           type: string
- *           format: date
- *         description: Date to check availability (YYYY-MM-DD). If omitted, only room info is returned.
- *         example: "2025-04-12"
- *     responses:
- *       200:
- *         description: Room details (with slots if date provided)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   allOf:
- *                     - $ref: '#/components/schemas/Room'
- *                     - type: object
- *                       properties:
- *                         slots:
- *                           type: array
- *                           description: Only present when date query param is provided
- *                           items:
- *                             $ref: '#/components/schemas/SlotAvailability'
- *       404:
- *         description: Room not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
 // ============================================================
 // TIME SLOTS
 // ============================================================
@@ -1070,11 +1033,10 @@
  * @swagger
  * /timeslots:
  *   post:
- *     tags: [Time Slots]
- *     summary: Create a time slot for a room (Admin only)
+ *     tags: [TimeSlots]
+ *     summary: Create a new time slot for a room (must be within coworking space open hours, no overlap)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -1086,15 +1048,15 @@
  *               room:
  *                 type: string
  *                 description: Room ID
- *                 example: "664abc123def456ghi789jkl"
+ *                 example: "64abc123def456"
  *               startTime:
  *                 type: string
  *                 format: date-time
- *                 example: "2025-04-12T09:00:00.000Z"
+ *                 example: "2024-06-01T08:00:00.000Z"
  *               endTime:
  *                 type: string
  *                 format: date-time
- *                 example: "2025-04-12T10:00:00.000Z"
+ *                 example: "2024-06-01T09:00:00.000Z"
  *     responses:
  *       201:
  *         description: Time slot created
@@ -1109,26 +1071,28 @@
  *                 data:
  *                   $ref: '#/components/schemas/TimeSlot'
  *       400:
- *         description: Overlapping time slot
+ *         description: Outside open hours or slot overlaps
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       404:
+ *         description: Room or coworking space not found
  */
 
 /**
  * @swagger
  * /timeslots/{roomId}:
  *   get:
- *     tags: [Time Slots]
- *     summary: Get all time slots for a room
+ *     tags: [TimeSlots]
+ *     summary: Get all time slots for a specific room (sorted by start time)
  *     parameters:
  *       - in: path
  *         name: roomId
  *         required: true
  *         schema:
  *           type: string
- *         description: Room ID to fetch time slots for
+ *         description: Room ID
  *     responses:
  *       200:
  *         description: List of time slots
@@ -1140,6 +1104,8 @@
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 count:
+ *                   type: integer
  *                 data:
  *                   type: array
  *                   items:
@@ -1155,10 +1121,9 @@
  * /reservations:
  *   get:
  *     tags: [Reservations]
- *     summary: Get all reservations (admin sees all; user sees own only)
+ *     summary: Get all reservations (Admin sees all; users see own only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     responses:
  *       200:
  *         description: List of reservations
@@ -1176,18 +1141,13 @@
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Reservation'
+ *       401:
+ *         description: Not authenticated
  *   post:
  *     tags: [Reservations]
- *     summary: Create a reservation for one or more consecutive time slots
- *     description: |
- *       Rules:
- *       - All `timeSlotIds` must belong to the same room
- *       - Slots must be continuous (no gaps)
- *       - None of the slots can already be booked (pending or success)
- *       - A user may have at most **3 active** reservations at a time
+ *     summary: Create a new reservation (max 3 active per user)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -1200,11 +1160,11 @@
  *                 type: array
  *                 items:
  *                   type: string
- *                 minItems: 1
- *                 example: ["slot_id_1", "slot_id_2"]
+ *                 description: Array of TimeSlot IDs (all must belong to same room)
+ *                 example: ["64abc1", "64abc2"]
  *     responses:
  *       201:
- *         description: Reservation created with status 'pending'
+ *         description: Reservation created
  *         content:
  *           application/json:
  *             schema:
@@ -1216,17 +1176,13 @@
  *                 data:
  *                   $ref: '#/components/schemas/Reservation'
  *       400:
- *         description: Slots not continuous, already booked, or 3-reservation limit reached
+ *         description: Invalid slots, already booked, or max 3 reservations exceeded
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Error'
- *       404:
- *         description: One or more time slots not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       401:
+ *         description: Not authenticated
  */
 
 /**
@@ -1234,10 +1190,9 @@
  * /reservations/{id}:
  *   get:
  *     tags: [Reservations]
- *     summary: Get a single reservation by ID
+ *     summary: Get single reservation (owner or admin only)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -1246,7 +1201,7 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Reservation details
+ *         description: Reservation found
  *         content:
  *           application/json:
  *             schema:
@@ -1258,24 +1213,14 @@
  *                 data:
  *                   $ref: '#/components/schemas/Reservation'
  *       403:
- *         description: Not authorized to view this reservation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Not authorized
  *       404:
  *         description: Reservation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   put:
  *     tags: [Reservations]
- *     summary: Update time slots of a pending reservation
- *     description: Only reservations with status 'pending' can be updated.
+ *     summary: Update reservation time slots (pending status only, owner or admin)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -1294,7 +1239,7 @@
  *                 type: array
  *                 items:
  *                   type: string
- *                 example: ["slot_id_3", "slot_id_4"]
+ *                 example: ["64abc3", "64abc4"]
  *     responses:
  *       200:
  *         description: Reservation updated
@@ -1309,29 +1254,16 @@
  *                 data:
  *                   $ref: '#/components/schemas/Reservation'
  *       400:
- *         description: Reservation is not pending or slot is already booked
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
+ *         description: Not pending or slot already booked
  *       403:
  *         description: Not authorized
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Reservation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *   delete:
  *     tags: [Reservations]
- *     summary: Cancel a reservation (sets status to 'cancelled')
+ *     summary: Cancel reservation (sets status to cancelled; handles refund if paid)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -1344,30 +1276,30 @@
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Reservation cancelled"
+ *       400:
+ *         description: Cannot cancel after check-in time
  *       403:
  *         description: Not authorized
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Reservation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 
 /**
  * @swagger
- * /reservations/{id}/confirm:
- *   put:
+ * /reservations/{id}/permanent:
+ *   delete:
  *     tags: [Reservations]
- *     summary: Confirm a reservation (Admin only) — sets status to 'success' and increments user entries
+ *     summary: Permanently delete a reservation from the database (owner or admin)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -1376,7 +1308,41 @@
  *           type: string
  *     responses:
  *       200:
- *         description: Reservation confirmed and user rank entry incremented
+ *         description: Reservation permanently deleted
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Reservation permanently deleted"
+ *       403:
+ *         description: Not authorized
+ *       404:
+ *         description: Reservation not found
+ */
+
+/**
+ * @swagger
+ * /reservations/{id}/confirm:
+ *   put:
+ *     tags: [Reservations]
+ *     summary: Admin confirm reservation (sets status to success, increments user entries)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reservation confirmed
  *         content:
  *           application/json:
  *             schema:
@@ -1392,88 +1358,13 @@
  *                   $ref: '#/components/schemas/Reservation'
  *       403:
  *         description: Admin only
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  *       404:
  *         description: Reservation not found
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
+
 // ============================================================
 // PAYMENTS
 // ============================================================
-/**
- * @swagger
- * tags:
- *   - name: Payments
- *     description: Payment processing (QR, Cash)
- */
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     Payment:
- *       type: object
- *       properties:
- *         _id:
- *           type: string
- *         reservation:
- *           type: string
- *         user:
- *           type: string
- *         amount:
- *           type: number
- *         method:
- *           type: string
- *           enum: [qr, cash]
- *         status:
- *           type: string
- *           enum: [pending, completed, failed]
- *         transactionId:
- *           type: string
- *           nullable: true
- *         qrImageBase64:
- *           type: string
- *           nullable: true
- *         qrExpiresAt:
- *           type: string
- *           format: date-time
- *           nullable: true
- *         cashConfirmedBy:
- *           type: string
- *           nullable: true
- *         cashConfirmedAt:
- *           type: string
- *           format: date-time
- *           nullable: true
- *         createdAt:
- *           type: string
- *           format: date-time
- *
- *     PaymentResponse:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *           example: true
- *         data:
- *           $ref: '#/components/schemas/Payment'
- *
- *     PaymentError:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *           example: false
- *         message:
- *           type: string
- *           example: Error message
- */
 
 /**
  * @swagger
@@ -1483,487 +1374,28 @@
  *     summary: Create a payment for a reservation
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [reservationId, method]
+ *             required: [reservation, amount, method]
  *             properties:
- *               reservationId:
+ *               reservation:
  *                 type: string
- *                 example: "664abc123def456ghi789jkl"
+ *                 description: Reservation ID
+ *                 example: "64abc123def456"
+ *               amount:
+ *                 type: number
+ *                 example: 600
  *               method:
  *                 type: string
  *                 enum: [qr, cash]
  *                 example: "qr"
  *     responses:
  *       201:
- *         description: Payment created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   type: object
- *                   properties:
- *                     paymentId:
- *                       type: string
- *                     reservationId:
- *                       type: string
- *                     amount:
- *                       type: number
- *                     method:
- *                       type: string
- *                     status:
- *                       type: string
- *       400:
- *         description: Invalid input or duplicate payment
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PaymentError'
- *       403:
- *         description: Not authorized
- */
-
-/**
- * @swagger
- * /payments/{id}:
- *   get:
- *     tags: [Payments]
- *     summary: Get a payment (owner or admin)
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Payment retrieved
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PaymentResponse'
- *       403:
- *         description: Not authorized
- *       404:
- *         description: Payment not found
- */
-
-/**
- * @swagger
- * /payments/{id}/confirm:
- *   put:
- *     tags: [Payments]
- *     summary: Confirm payment (generic)
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Payment confirmed
- *       400:
- *         description: Invalid status
- *       404:
- *         description: Payment not found
- */
-
-/**
- * @swagger
- * /payments/{id}/fail:
- *   put:
- *     tags: [Payments]
- *     summary: Mark payment as failed
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Payment marked as failed
- *       400:
- *         description: Invalid status
- *       404:
- *         description: Payment not found
- */
-
-/**
- * @swagger
- * /payments/{id}/qr:
- *   post:
- *     tags: [Payments]
- *     summary: Generate QR code for payment
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: QR generated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 paymentId:
- *                   type: string
- *                 qrImage:
- *                   type: string
- *                   example: "data:image/png;base64,..."
- *                 expiresAt:
- *                   type: string
- *                   format: date-time
- *                 expiresInSec:
- *                   type: number
- *       400:
- *         description: Invalid payment state
- *       403:
- *         description: Not authorized
- *       404:
- *         description: Payment not found
- */
-/**
- * @swagger
- * /payments/{id}/confirm-qr:
- *   put:
- *     tags: [Payments]
- *     summary: Confirm QR payment (after scan)
- *     description: |
- *       Confirms a QR payment using a qrId generated earlier.
- *       The system will verify that the QR is valid, not expired, and not reused.
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Payment ID
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - qrId
- *             properties:
- *               qrId:
- *                 type: string
- *                 example: "664abc123def456ghi789xyz"
- *                 description: ID of the QR code record
- *     responses:
- *       200:
- *         description: QR payment confirmed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 data:
- *                   type: object
- *                   properties:
- *                     paymentId:
- *                       type: string
- *                     transactionId:
- *                       type: string
- *                     status:
- *                       type: string
- *                       example: completed
- *       400:
- *         description: QR expired, already used, or invalid state
- *       404:
- *         description: Payment or QR record not found
- *       403:
- *         description: Not authorized
- */
-/**
- * @swagger
- * /payments/{id}/qr-status:
- *   get:
- *     tags: [Payments]
- *     summary: Check QR validity and countdown
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: QR status retrieved
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 paymentStatus:
- *                   type: string
- *                 qrExpired:
- *                   type: boolean
- *                 secondsLeft:
- *                   type: number
- *                 expiresAt:
- *                   type: string
- *                   format: date-time
- *       403:
- *         description: Not authorized
- *       404:
- *         description: Payment not found
- */
-
-/**
- * @swagger
- * /payments/{id}/confirm-cash:
- *   put:
- *     tags: [Payments]
- *     summary: Admin confirms cash payment
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: Cash payment confirmed
- *       400:
- *         description: Invalid state
- *       403:
- *         description: Admin only
- *       404:
- *         description: Payment not found
- */
-
-/**
- * @swagger
- * /payments/pending-cash:
- *   get:
- *     tags: [Payments]
- *     summary: Get all pending cash payments (Admin dashboard)
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     responses:
- *       200:
- *         description: List of pending cash payments
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 count:
- *                   type: number
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Payment'
- *       403:
- *         description: Admin only
- */
-
-// ============================================================
-// PAYMENTS
-// ============================================================
-
-/**
- * @swagger
- * tags:
- *   - name: Payments
- *     description: Payment processing
- */
-
-/**
- * @swagger
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
- *     cookieAuth:
- *       type: apiKey
- *       in: cookie
- *       name: token
- *
- *   schemas:
- *     Payment:
- *       type: object
- *       properties:
- *         _id:
- *           type: string
- *           example: "664abc123def456ghi789jkl"
- *         reservation:
- *           type: string
- *           example: "664f1a2b3c4d5e6f7a8b9c0d"
- *         user:
- *           type: string
- *           example: "664f1a2b3c4d5e6f7a8b9c01"
- *         amount:
- *           type: number
- *           example: 500
- *         method:
- *           type: string
- *           enum: [qr, cash]
- *         status:
- *           type: string
- *           enum: [pending, completed, failed, cancelled, refund_required]
- *         transactionId:
- *           type: string
- *           nullable: true
- *           example: "TXN-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
- *         createdAt:
- *           type: string
- *           format: date-time
- *         uiBadge:
- *           type: object
- *           nullable: true
- *           description: มีเฉพาะตอน status เป็น refund_required
- *           properties:
- *             color:
- *               type: string
- *               example: "orange"
- *             tooltip:
- *               type: string
- *               example: "Contact Admin"
- *
- *     Error:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *           example: false
- *         message:
- *           type: string
- *           example: "Error description"
- *
- *     Success:
- *       type: object
- *       properties:
- *         success:
- *           type: boolean
- *           example: true
- *         message:
- *           type: string
- */
-
-/**
- * @swagger
- * /payments/user/{userId}:
- *   get:
- *     tags: [Payments]
- *     summary: Get all payments for a specific user
- *     description: |
- *       ดึง payment ทั้งหมดของ user เรียงจากใหม่ไปเก่า
- *       - User สามารถดูได้เฉพาะ payment ของตัวเองเท่านั้น
- *       - ถ้า payment มีสถานะ `refund_required` จะมี `uiBadge` ติดมาด้วย
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID
- *         example: "664f1a2b3c4d5e6f7a8b9c01"
- *     responses:
- *       200:
- *         description: รายการ payment ของ user
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 count:
- *                   type: integer
- *                   example: 2
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/Payment'
- *             example:
- *               success: true
- *               count: 1
- *               data:
- *                 - _id: "664abc123def456ghi789jkl"
- *                   reservation: "664f1a2b3c4d5e6f7a8b9c0d"
- *                   amount: 500
- *                   method: "qr"
- *                   status: "refund_required"
- *                   createdAt: "2024-06-01T10:00:00.000Z"
- *                   uiBadge:
- *                     color: "orange"
- *                     tooltip: "Contact Admin"
- *       403:
- *         description: ไม่มีสิทธิ์ดู payment ของ user คนอื่น
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               success: false
- *               message: "Unauthorized"
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- */
-
-/**
- * @swagger
- * /payments/{id}/method:
- *   put:
- *     tags: [Payments]
- *     summary: Update payment method (qr ↔ cash)
- *     description: |
- *       เปลี่ยนวิธีการชำระเงินของ payment ที่มีสถานะ `pending`
- *       - เปลี่ยนได้เฉพาะ payment สถานะ **pending** เท่านั้น
- *       - ถ้าสถานะเป็น `completed` แล้ว ต้องติดต่อ Admin
- *       - เจ้าของ payment หรือ Admin เท่านั้นที่เปลี่ยนได้
- *       - ถ้าเปลี่ยนจาก `qr` → `cash` จะล้าง activeQr ออกอัตโนมัติ
- *       - ถ้าเปลี่ยนจาก `cash` → `qr` จะล้างข้อมูล cashConfirmed ออกอัตโนมัติ
- *     security:
- *       - bearerAuth: []
- *       - cookieAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Payment ID
- *         example: "664abc123def456ghi789jkl"
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [method]
- *             properties:
- *               method:
- *                 type: string
- *                 enum: [qr, cash]
- *                 example: "cash"
- *     responses:
- *       200:
- *         description: เปลี่ยนวิธีชำระเงินสำเร็จ
+ *         description: Payment created
  *         content:
  *           application/json:
  *             schema:
@@ -1974,144 +1406,77 @@
  *                   example: true
  *                 data:
  *                   $ref: '#/components/schemas/Payment'
- *       400:
- *         description: |
- *           - `method` ไม่ถูกต้อง (ต้องเป็น qr หรือ cash)
- *           - Payment สถานะ `completed` แล้ว
- *           - Payment ไม่ใช่สถานะ `pending`
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             examples:
- *               completed:
- *                 summary: Payment สำเร็จแล้ว
- *                 value:
- *                   success: false
- *                   message: "Payment already completed. Contact Admin to change."
- *               notPending:
- *                 summary: ไม่ใช่ pending
- *                 value:
- *                   success: false
- *                   message: "Only pending payments can change method"
- *               invalidMethod:
- *                 summary: method ไม่ถูกต้อง
- *                 value:
- *                   success: false
- *                   message: "method must be \"qr\" or \"cash\""
- *       403:
- *         description: ไม่ใช่เจ้าของ payment หรือ Admin
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               success: false
- *               message: "Not authorized"
- *       404:
- *         description: ไม่พบ payment
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               success: false
- *               message: "Payment not found"
- */
-
-// ============================================================
-// RESERVATIONS
-// ============================================================
-
-/**
- * @swagger
- * tags:
- *   - name: Reservations
- *     description: Reservation management
+ *       401:
+ *         description: Not authenticated
  */
 
 /**
  * @swagger
- * /reservations/{id}:
- *   delete:
- *     tags: [Reservations]
- *     summary: Cancel a reservation (soft cancel)
- *     description: |
- *       ยกเลิกการจอง โดยมีเงื่อนไขดังนี้
- *       - ยกเลิกได้เฉพาะ **ก่อนถึงเวลา check-in** เท่านั้น
- *       - เจ้าของ reservation หรือ Admin เท่านั้นที่ยกเลิกได้
- *
- *       **กรณี payment `completed` แล้ว:**
- *       - reservation → `cancelled`
- *       - payment → `refund_required`
- *       - แจ้ง Admin เพื่อดำเนินการคืนเงิน
- *
- *       **กรณี payment `pending` หรือยังไม่ได้ชำระ:**
- *       - reservation → `cancelled`
- *       - payment (ถ้ามี) → `cancelled`
+ * /payments/pending-cash:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get all pending cash payments (for admin to review)
  *     security:
  *       - bearerAuth: []
- *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending cash payments
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ */
+
+/**
+ * @swagger
+ * /payments/user/{id}:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get all payments for a specific user (sorted by date descending)
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
  *         schema:
  *           type: string
- *         description: Reservation ID
- *         example: "664f1a2b3c4d5e6f7a8b9c0d"
+ *         description: User ID
  *     responses:
  *       200:
- *         description: ยกเลิกการจองสำเร็จ
+ *         description: List of payments for the user
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/Success'
- *             examples:
- *               unpaid:
- *                 summary: ยังไม่ได้ชำระเงิน
- *                 value:
- *                   success: true
- *                   message: "Reservation cancelled"
- *               refundRequired:
- *                 summary: ชำระแล้ว — ต้องคืนเงิน
- *                 value:
- *                   success: true
- *                   message: "Reservation cancelled. Payment marked as refund_required and admin notified."
- *       400:
- *         description: เลยเวลา check-in แล้ว ไม่สามารถยกเลิกได้
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               success: false
- *               message: "Cannot cancel reservation after check-in time has passed"
- *       403:
- *         description: ไม่ใช่เจ้าของ reservation หรือ Admin
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               success: false
- *               message: "Not authorized"
- *       404:
- *         description: ไม่พบ reservation
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *             example:
- *               success: false
- *               message: "Reservation not found"
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
  */
+
 /**
  * @swagger
  * /payments/admin/qr-code:
  *   post:
- *     summary: Admin uploads a static QR code image (US2-7)
  *     tags: [Payments]
+ *     summary: Upload admin QR code image (Admin only, multipart/form-data)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -2120,18 +1485,18 @@
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [image, spaceId]
+ *             required: [coworkingSpace, image]
  *             properties:
+ *               coworkingSpace:
+ *                 type: string
+ *                 description: Coworking space ID
  *               image:
  *                 type: string
  *                 format: binary
- *                 description: QR code image file (JPG/PNG/WEBP, max 5MB)
- *               spaceId:
- *                 type: string
- *                 description: MongoDB ObjectId of the coworking space
+ *                 description: QR code image file
  *     responses:
- *       '201':
- *         description: QR Code uploaded and activated successfully
+ *       201:
+ *         description: QR code uploaded
  *         content:
  *           application/json:
  *             schema:
@@ -2139,106 +1504,69 @@
  *               properties:
  *                 success:
  *                   type: boolean
- *                 message:
- *                   type: string
- *                   example: QR Code updated successfully
- *                 uploadedAt:
- *                   type: string
- *                   format: date-time
- *       '400':
- *         description: No file, invalid format, or missing spaceId
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Format Not Supported. Use JPG, PNG, or WEBP.
- *       '403':
- *         description: Admin access required
- *   get:
- *     summary: Get active QR code image for user payment page (US2-7)
- *     tags: [Payments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: spaceId
- *         required: true
- *         schema:
- *           type: string
- *         description: MongoDB ObjectId of the coworking space
- *     responses:
- *       '200':
- *         description: Returns the active QR code image as binary
- *         content:
- *           image/png:
- *             schema:
- *               type: string
- *               format: binary
- *           image/jpeg:
- *             schema:
- *               type: string
- *               format: binary
- *           image/webp:
- *             schema:
- *               type: string
- *               format: binary
- *       '400':
- *         description: spaceId is required
- *       '404':
- *         description: No active QR code found
- *
- * /payments/admin/qr-code/info:
- *   get:
- *     summary: Get active QR code metadata for admin dashboard (US2-7)
- *     tags: [Payments]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: spaceId
- *         required: true
- *         schema:
- *           type: string
- *         description: MongoDB ObjectId of the coworking space
- *     responses:
- *       '200':
- *         description: QR code metadata including preview dataUrl
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
+ *                   example: true
  *                 data:
  *                   type: object
- *                   properties:
- *                     imageUrl:
- *                       type: string
- *                       description: Base64 data URL for image preview
- *                     uploadedBy:
- *                       type: string
- *                       description: Admin name who uploaded
- *                     uploadedAt:
- *                       type: string
- *                       format: date-time
- *       '400':
- *         description: spaceId is required
- *       '403':
- *         description: Admin access required
- *       '404':
- *         description: No active QR code found
- *
+ *                   description: QrCode document
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get admin QR code image (for users to scan when paying)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: QR code image data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *       401:
+ *         description: Not authenticated
+ */
+
+/**
+ * @swagger
+ * /payments/admin/qr-code/info:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get admin QR code metadata/info (Admin only)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: QR code info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
+ */
+
+/**
+ * @swagger
  * /payments/admin/{id}/method:
  *   put:
- *     summary: Admin updates a user payment method (US2-8)
  *     tags: [Payments]
+ *     summary: Admin update payment method with audit log (Admin only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2260,8 +1588,8 @@
  *                 type: string
  *                 enum: [qr, cash]
  *     responses:
- *       '200':
- *         description: Payment method updated successfully
+ *       200:
+ *         description: Payment method updated
  *         content:
  *           application/json:
  *             schema:
@@ -2269,31 +1597,23 @@
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 data:
- *                   type: object
- *                   description: Updated payment object with auditLog
- *       '400':
- *         description: Cannot change method on a completed payment
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: Cannot change method on a completed payment
- *       '403':
- *         description: Admin access required
- *       '404':
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
+ *       404:
  *         description: Payment not found
- *
+ */
+
+/**
+ * @swagger
  * /payments/admin/{id}/cancel:
  *   put:
- *     summary: Admin cancels a payment (US2-9)
  *     tags: [Payments]
+ *     summary: Admin cancel a payment with audit log (Admin only)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -2304,8 +1624,8 @@
  *           type: string
  *         description: Payment ID
  *     responses:
- *       '200':
- *         description: Payment cancelled successfully
+ *       200:
+ *         description: Payment cancelled
  *         content:
  *           application/json:
  *             schema:
@@ -2313,21 +1633,223 @@
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 data:
- *                   type: object
- *                   properties:
- *                     payment:
- *                       type: object
- *                       description: >
- *                         status becomes "cancelled" (if was pending/failed)
- *                         or "refund_required" (if was completed)
- *                     reservationStatus:
- *                       type: string
- *                       example: cancelled
- *       '400':
- *         description: Cannot cancel payment with current status
- *       '403':
- *         description: Admin access required
- *       '404':
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       403:
+ *         description: Admin only
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}:
+ *   get:
+ *     tags: [Payments]
+ *     summary: Get single payment by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Payment ID
+ *     responses:
+ *       200:
+ *         description: Payment found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/confirm:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Confirm a payment (marks as completed)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment confirmed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/fail:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Mark a payment as failed
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment marked as failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/method:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Update payment method (user self-service)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [method]
+ *             properties:
+ *               method:
+ *                 type: string
+ *                 enum: [qr, cash]
+ *     responses:
+ *       200:
+ *         description: Payment method updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/confirm-qr:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Confirm QR payment (attach QrCode reference)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: QR payment confirmed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       404:
+ *         description: Payment not found
+ */
+
+/**
+ * @swagger
+ * /payments/{id}/confirm-cash:
+ *   put:
+ *     tags: [Payments]
+ *     summary: Confirm cash payment (records confirmedBy and timestamp)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Cash payment confirmed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Payment'
+ *       401:
+ *         description: Not authenticated
+ *       404:
  *         description: Payment not found
  */

@@ -35,7 +35,7 @@ const PaymentSchema = new mongoose.Schema(
         },
 
         // --- QR specific ---
-        activeQr: {
+        adminQrCode: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'QrCode',
             default: null

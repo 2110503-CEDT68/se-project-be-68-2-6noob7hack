@@ -2,11 +2,9 @@
 
 const Payment     = require('../models/Payment');
 const Reservation = require('../models/Reservation');
-const QrCode      = require('../models/QrCode');
 const Room        = require('../models/Room');
-const QRCode = require('qrcode');
 const { randomUUID } = require('crypto');
-const AdminQrCode = require('../models/AdminQrCode');
+const QrCode      = require('../models/QrCode');
 const multer      = require('multer');
 
 const upload = multer({
@@ -48,18 +46,6 @@ const markReservationSuccess = async (reservationId) => {
 // Helper: Calculate total amount from time slots
 // =====================================================
 const calcAmount = (room, slotCount) => room.price * slotCount;
-
-
-// =====================================================
-// Helper: Generate QR base64 image from payload string
-// =====================================================
-const generateQrBase64 = async (payload) => {
-    return await QRCode.toDataURL(payload, {
-        errorCorrectionLevel: 'H',
-        width: 300,
-        margin: 2
-    });
-};
 
 
 // =====================================================
@@ -230,99 +216,13 @@ exports.failPayment = async (req, res) => {
 
 // =====================================================
 // US2-2
-// @desc    Generate a QR code for a payment (stored in QrCode collection)
-// @route   POST /api/v1/payments/:id/qr
-// @access  Private (owner of the payment)
-// =====================================================
-exports.generateQr = async (req, res) => {
-    try {
-        const payment = await Payment.findById(req.params.id)
-            .populate({
-                path: 'reservation',
-                populate: { path: 'room', select: 'coworkingSpace' }
-            });
-
-        if (!payment) {
-            return res.status(404).json({ success: false, message: 'Payment not found' });
-        }
-
-        if (payment.user.toString() !== req.user.id) {
-            return res.status(403).json({ success: false, message: 'Not authorized' });
-        }
-
-        if (payment.method !== 'qr') {
-            return res.status(400).json({
-                success: false,
-                message: 'This payment does not use QR method'
-            });
-        }
-
-        if (payment.status !== 'pending') {
-            return res.status(400).json({
-                success: false,
-                message: `Cannot generate QR for a payment with status "${payment.status}"`
-            });
-        }
-
-        // --- invalidate any previous unused QR for this payment ---
-        await QrCode.deleteMany({ payment: payment._id, isUsed: false });
-
-        // --- build payload (what gets encoded inside the QR image) ---
-        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-        const payload = JSON.stringify({
-            paymentId:     payment._id.toString(),
-            reservationId: payment.reservation._id.toString(),
-            amount:        payment.amount,
-            generatedAt:   new Date().toISOString(),
-            expiresAt:     expiresAt.toISOString()
-        });
-
-        // --- generate base64 image ---
-        const imageBase64 = await generateQrBase64(payload);
-
-        // --- persist QR record to DB ---
-        const coworkingSpaceId = payment.reservation?.room?.coworkingSpace;
-
-        const qrRecord = await QrCode.create({
-            payment:       payment._id,
-            coworkingSpace: coworkingSpaceId,
-            imageBase64,
-            payload,
-            expiresAt,
-            generatedBy:   req.user.id
-        });
-
-        // --- attach QR ref to payment ---
-        payment.activeQr = qrRecord._id;
-        await payment.save();
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                paymentId:    payment._id,
-                qrId:         qrRecord._id,
-                qrImage:      imageBase64,
-                expiresAt,
-                expiresInSec: 15 * 60,
-                amount:       payment.amount
-            }
-        });
-
-    } catch (err) {
-        return handleError(err, res);
-    }
-};
-
-
-// =====================================================
-// US2-2
-// @desc    Verify & confirm QR payment
+// @desc    User confirms QR payment with QrCode
 // @route   PUT /api/v1/payments/:id/confirm-qr
-// @access  Private (admin or trusted webhook)
+// @access  Private (user or admin)
 // =====================================================
 exports.confirmQrPayment = async (req, res) => {
     try {
+        const { adminQrCodeId } = req.body;
         const payment = await Payment.findById(req.params.id);
 
         if (!payment) {
@@ -330,7 +230,7 @@ exports.confirmQrPayment = async (req, res) => {
         }
 
         if (payment.method !== 'qr') {
-            return res.status(400).json({ success: false, message: 'Not a QR payment' });
+            return res.status(400).json({ success: false, message: 'This is not a QR payment' });
         }
 
         if (payment.status !== 'pending') {
@@ -340,60 +240,43 @@ exports.confirmQrPayment = async (req, res) => {
             });
         }
 
-        const qrLookupId = req.body.qrId || payment.activeQr;
+        // Verify user authorization
+        if (payment.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
 
-        if (!qrLookupId) {
+        if (!adminQrCodeId) {
             return res.status(400).json({
                 success: false,
-                message: 'No active QR found for this payment. Please regenerate.'
+                message: 'adminQrCodeId is required'
             });
         }
 
-        const qrRecord = await QrCode.findById(qrLookupId);
-
-        if (!qrRecord) {
-            return res.status(404).json({ success: false, message: 'QR record not found' });
+        // Verify QrCode exists and is active
+        const adminQr = await QrCode.findById(adminQrCodeId);
+        if (!adminQr || !adminQr.isActive) {
+            return res.status(404).json({ success: false, message: 'QrCode not found or inactive' });
         }
 
-        if (qrRecord.payment.toString() !== payment._id.toString()) {
+        // Verify QrCode belongs to this coworking space
+        const reservation = await Reservation.findById(payment.reservation)
+            .populate({ path: 'room', select: 'coworkingSpace' });
+
+        if (!reservation) {
+            return res.status(404).json({ success: false, message: 'Reservation not found' });
+        }
+
+        if (adminQr.coworkingSpace.toString() !== reservation.room.coworkingSpace.toString()) {
             return res.status(400).json({
                 success: false,
-                message: 'QR code does not belong to this payment'
+                message: 'QR code does not belong to this coworking space'
             });
-        }
-
-        if (qrRecord.isUsed) {
-            return res.status(400).json({
-                success: false,
-                message: 'QR code has already been used'
-            });
-        }
-
-        if (new Date() > qrRecord.expiresAt) {
-            return res.status(400).json({
-                success: false,
-                message: 'QR code has expired. Please regenerate.'
-            });
-        }
-
-        if (req.body.payload) {
-            if (req.body.payload !== qrRecord.payload) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'QR payload mismatch. Verification failed.'
-                });
-            }
         }
 
         const transactionId = `TXN-${randomUUID().toUpperCase()}`;
-
-        qrRecord.isUsed = true;
-        qrRecord.usedAt = new Date();
-        await qrRecord.save();
-
-        payment.status        = 'completed';
+        payment.status = 'completed';
         payment.transactionId = transactionId;
-        payment.activeQr      = null;
+        payment.adminQrCode = null;
         await payment.save();
         await markReservationSuccess(payment.reservation);
         await Reservation.findByIdAndUpdate(payment.reservation, { status: 'success' });
@@ -401,12 +284,10 @@ exports.confirmQrPayment = async (req, res) => {
         return res.status(200).json({
             success: true,
             data: {
-                paymentId:     payment._id,
+                paymentId: payment._id,
                 transactionId: payment.transactionId,
-                status:        payment.status,
-                amount:        payment.amount,
-                qrId:          qrRecord._id,
-                usedAt:        qrRecord.usedAt
+                status: payment.status,
+                amount: payment.amount
             }
         });
 
@@ -416,134 +297,7 @@ exports.confirmQrPayment = async (req, res) => {
 };
 
 
-// =====================================================
-// US2-2
-// @desc    Verify a QR code without confirming payment
-// @route   POST /api/v1/payments/verify-qr
-// @access  Private (admin or trusted scanner)
-// =====================================================
-exports.verifyQr = async (req, res) => {
-    try {
-        const { qrId, payload } = req.body;
 
-        if (!qrId && !payload) {
-            return res.status(400).json({
-                success: false,
-                message: 'Provide qrId or payload to verify'
-            });
-        }
-
-        let qrRecord;
-
-        if (qrId) {
-            qrRecord = await QrCode.findById(qrId).populate('payment');
-        } else {
-            qrRecord = await QrCode.findOne({ payload }).populate('payment');
-        }
-
-        if (!qrRecord) {
-            return res.status(404).json({ success: false, message: 'QR record not found' });
-        }
-
-        const now = new Date();
-        const expired  = now > qrRecord.expiresAt;
-        const secondsLeft = expired ? 0 : Math.floor((qrRecord.expiresAt - now) / 1000);
-
-        if (qrRecord.isUsed) {
-            return res.status(400).json({
-                success: false,
-                message: 'QR code has already been used',
-                data: { qrId: qrRecord._id, isUsed: true, usedAt: qrRecord.usedAt }
-            });
-        }
-
-        if (expired) {
-            return res.status(400).json({
-                success: false,
-                message: 'QR code has expired',
-                data: { qrId: qrRecord._id, expired: true, expiresAt: qrRecord.expiresAt }
-            });
-        }
-
-        if (payload && payload !== qrRecord.payload) {
-            return res.status(400).json({
-                success: false,
-                message: 'QR payload mismatch'
-            });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: 'QR is valid',
-            data: {
-                qrId:          qrRecord._id,
-                paymentId:     qrRecord.payment._id,
-                amount:        qrRecord.payment.amount,
-                paymentStatus: qrRecord.payment.status,
-                expiresAt:     qrRecord.expiresAt,
-                secondsLeft,
-                isUsed:        false
-            }
-        });
-
-    } catch (err) {
-        return handleError(err, res);
-    }
-};
-
-
-// =====================================================
-// US2-2 (helper for frontend countdown)
-// @desc    Check if QR is still valid
-// @route   GET /api/v1/payments/:id/qr-status
-// @access  Private (owner)
-// =====================================================
-exports.getQrStatus = async (req, res) => {
-    try {
-        const payment = await Payment.findById(req.params.id)
-            .select('activeQr status method user');
-
-        if (!payment) {
-            return res.status(404).json({ success: false, message: 'Payment not found' });
-        }
-
-        if (payment.user.toString() !== req.user.id) {
-            return res.status(403).json({ success: false, message: 'Not authorized' });
-        }
-
-        if (!payment.activeQr) {
-            return res.status(200).json({
-                success: true,
-                data: {
-                    paymentStatus: payment.status,
-                    qrExpired:     true,
-                    secondsLeft:   0,
-                    expiresAt:     null
-                }
-            });
-        }
-
-        const qrRecord = await QrCode.findById(payment.activeQr).select('expiresAt isUsed');
-        const now = new Date();
-        const expired = !qrRecord || qrRecord.isUsed || now > qrRecord.expiresAt;
-        const secondsLeft = expired
-            ? 0
-            : Math.floor((qrRecord.expiresAt - now) / 1000);
-
-        return res.status(200).json({
-            success: true,
-            data: {
-                paymentStatus: payment.status,
-                qrExpired:     expired,
-                secondsLeft,
-                expiresAt:     qrRecord?.expiresAt ?? null
-            }
-        });
-
-    } catch (err) {
-        return handleError(err, res);
-    }
-};
 
 
 // =====================================================
@@ -647,7 +401,7 @@ exports.getPayment = async (req, res) => {
         const payment = await Payment.findById(req.params.id)
             .populate({ path: 'reservation', select: 'status timeSlots room' })
             .populate({ path: 'user', select: 'name email' })
-            .populate({ path: 'activeQr', select: 'expiresAt isUsed usedAt imageBase64' })
+            .populate({ path: 'adminQrCode', select: 'coworkingSpace isActive' })
             .lean();
 
         if (!payment) {
@@ -727,7 +481,7 @@ exports.updatePaymentMethod = async (req, res) => {
         payment.method = method;
 
         if (method !== 'qr') {
-            payment.activeQr = null;
+            payment.adminQrCode = null;
         }
 
         if (method !== 'cash') {
@@ -748,7 +502,7 @@ exports.updatePaymentMethod = async (req, res) => {
 // @route   POST /api/v1/payments/admin/qr-code
 // @access  Private (admin only)
 // =====================================================
-exports.uploadAdminQrCode = async (req, res) => {
+exports.uploadQrCode = async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'No file uploaded' });
@@ -760,7 +514,7 @@ exports.uploadAdminQrCode = async (req, res) => {
         }
 
         // deactivate old QR for this space
-        await AdminQrCode.updateMany(
+        await QrCode.updateMany(
             { coworkingSpace: spaceId },
             { isActive: false }
         );
@@ -768,7 +522,7 @@ exports.uploadAdminQrCode = async (req, res) => {
         // convert buffer to Base64
         const imageData = req.file.buffer.toString('base64');
 
-        const qrDoc = await AdminQrCode.create({
+        const qrDoc = await QrCode.create({
             coworkingSpace: spaceId,
             imageData,
             mimeType  : req.file.mimetype,
@@ -795,14 +549,14 @@ exports.uploadAdminQrCode = async (req, res) => {
 // @route   GET /api/v1/payments/admin/qr-code?spaceId=:id
 // @access  Private
 // =====================================================
-exports.getAdminQrCode = async (req, res) => {
+exports.getQrCode = async (req, res) => {
     try {
         const { spaceId } = req.query;
         if (!spaceId) {
             return res.status(400).json({ success: false, message: 'spaceId is required' });
         }
 
-        const qrDoc = await AdminQrCode.findOne({
+        const qrDoc = await QrCode.findOne({
             coworkingSpace: spaceId,
             isActive: true
         }).populate('uploadedBy', 'name');
@@ -826,14 +580,14 @@ exports.getAdminQrCode = async (req, res) => {
 // @route   GET /api/v1/payments/admin/qr-code/info?spaceId=:id
 // @access  Private (admin only)
 // =====================================================
-exports.getAdminQrCodeInfo = async (req, res) => {
+exports.getQrCodeInfo = async (req, res) => {
     try {
         const { spaceId } = req.query;
         if (!spaceId) {
             return res.status(400).json({ success: false, message: 'spaceId is required' });
         }
 
-        const qrDoc = await AdminQrCode.findOne({
+        const qrDoc = await QrCode.findOne({
             coworkingSpace: spaceId,
             isActive: true
         }).populate('uploadedBy', 'name');
