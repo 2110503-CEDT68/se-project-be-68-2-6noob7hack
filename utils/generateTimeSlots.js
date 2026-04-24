@@ -1,66 +1,42 @@
 const TimeSlot = require('../models/TimeSlot');
 
-const TZ_OFFSET_HOURS = 7;
+// Store times as local UTC+7 wall-clock values directly in UTC fields.
+// The frontend reads them as-is without any timezone conversion needed.
 
 /**
- * Create a UTC Date from a UTC+7 local time safely
+ * Create a Date where the UTC fields hold the UTC+7 local wall-clock time.
+ * e.g. local 08:00 → stored as 2025-01-01T08:00:00.000Z (NOT 01:00Z)
  */
-function toUTCDate(dateStr, hour, minute) {
+function toLocalDate(dateStr, hour, minute) {
   const [year, month, day] = dateStr.split('-').map(Number);
-
-  return new Date(Date.UTC(
-    year,
-    month - 1,
-    day,
-    hour - TZ_OFFSET_HOURS,
-    minute,
-    0,
-    0
-  ));
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
 }
 
 /**
- * Get full UTC range for a UTC+7 local day
+ * Get the full "local day" range stored as UTC+7 wall-clock values.
+ * e.g. 2025-01-01 → 2025-01-01T00:00:00.000Z to 2025-01-01T23:59:59.999Z
  */
-function getUTCDayRange(dateStr) {
+function getLocalDayRange(dateStr) {
   const [year, month, day] = dateStr.split('-').map(Number);
-
-  const start = new Date(Date.UTC(
-    year,
-    month - 1,
-    day,
-    -TZ_OFFSET_HOURS,
-    0,
-    0,
-    0
-  ));
-
-  const end = new Date(Date.UTC(
-    year,
-    month - 1,
-    day,
-    23 - TZ_OFFSET_HOURS,
-    59,
-    59,
-    999
-  ));
-
+  const start = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const end   = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
   return { start, end };
 }
 
 async function generateDailySlots(
   roomId,
   dateStr,
-  openTime = '08:00',
+  openTime  = '08:00',
   closeTime = '20:00'
 ) {
-  const [openHour, openMin] = openTime.split(':').map(Number);
+  const [openHour,  openMin]  = openTime.split(':').map(Number);
   const [closeHour, closeMin] = closeTime.split(':').map(Number);
 
-  const { start: startOfDay, end: endOfDay } = getUTCDayRange(dateStr);
+  const { start: startOfDay, end: endOfDay } = getLocalDayRange(dateStr);
 
+  // Find slots already generated for this room+day
   const existing = await TimeSlot.find({
-    room: roomId,
+    room:      roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
   });
 
@@ -69,23 +45,18 @@ async function generateDailySlots(
   );
 
   const toCreate = [];
+  let cursor    = toLocalDate(dateStr, openHour,  openMin);
+  const closeAt = toLocalDate(dateStr, closeHour, closeMin);
 
-  let cursor = toUTCDate(dateStr, openHour, openMin);
-  const closeDate = toUTCDate(dateStr, closeHour, closeMin);
-
-  while (cursor < closeDate) {
+  while (cursor < closeAt) {
     const slotStart = new Date(cursor);
-    const slotEnd = new Date(cursor);
+    const slotEnd   = new Date(cursor);
     slotEnd.setUTCHours(slotEnd.getUTCHours() + 1);
 
-    if (slotEnd > closeDate) break;
+    if (slotEnd > closeAt) break;
 
     if (!existingStarts.has(slotStart.getTime())) {
-      toCreate.push({
-        room: roomId,
-        startTime: slotStart,
-        endTime: slotEnd
-      });
+      toCreate.push({ room: roomId, startTime: slotStart, endTime: slotEnd });
     }
 
     cursor.setUTCHours(cursor.getUTCHours() + 1);
@@ -96,7 +67,7 @@ async function generateDailySlots(
   }
 
   return TimeSlot.find({
-    room: roomId,
+    room:      roomId,
     startTime: { $gte: startOfDay, $lte: endOfDay }
   }).sort({ startTime: 1 });
 }
