@@ -23,7 +23,6 @@ router.delete(
   authorize('admin', 'user'),
   permanentlyDeleteReservation
 );
-router.get('/reservation/:reservationId', protect, getPaymentByReservation);
 // =====================================================
 // GET all / POST create
 // =====================================================
