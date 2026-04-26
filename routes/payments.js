@@ -82,5 +82,5 @@ router.get('/reservation/:reservationId', protect, getPaymentByReservation);
 // US2-4 User payment details — keep /:id LAST
 // -------------------------------------------------------
 router.get('/:id',                protect, getPayment);
-
+router.get('/admin/all', protect, authorize('admin'), adminGetAllPayments);
 module.exports = router;

@@ -861,3 +861,16 @@ exports.getPaymentByReservation = async (req, res) => {
     return handleError(err, res);
   }
 };
+
+exports.adminGetAllPayments = async (req, res) => {
+    try {
+        const payments = await Payment.find({})
+            .populate('reservation')
+            .populate('user', 'name email')
+            .sort({ updatedAt: -1 });
+
+        return res.status(200).json({ success: true, data: payments });
+    } catch (err) {
+        return handleError(err, res);
+    }
+};
