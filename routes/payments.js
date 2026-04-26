@@ -18,7 +18,8 @@ const {
     getQrCodeBySpace,
     adminUpdatePaymentMethod,
     adminCancelPayment,
-    getPaymentByReservation, // ✅ add this
+    getPaymentByReservation,
+    adminGetAllPayments // ✅ make sure you imported this
 } = require('../controllers/payments');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -31,12 +32,12 @@ router.put('/:id/confirm',        protect, confirmPayment);
 router.put('/:id/fail',           protect, failPayment);
 
 // -------------------------------------------------------
-// US2-2  QR payment (using QrCode)
+// US2-2  QR payment
 // -------------------------------------------------------
 router.put('/:id/confirm-qr',     protect, confirmQrPayment);
 router.get('/:id/qr-code',        protect, getQrCode);
 
-// Admin: get QR by coworking space id
+// Admin: QR by coworking space
 router.get('/admin/qr-code/:spaceId', protect, authorize('admin'), getQrCodeBySpace);
 
 // -------------------------------------------------------
@@ -56,17 +57,17 @@ router.put('/:id/method',         protect, updatePaymentMethod);
 router.put('/:id/cancel',         protect, userCancelPayment);
 
 // -------------------------------------------------------
-// US2-7 Admin manage Co-working space's Qr code
+// US2-7 Admin manage QR code
 // -------------------------------------------------------
 router.post('/admin/qr-code',     protect, authorize('admin'), uploadQrMiddleware, uploadQrCode);
 
 // -------------------------------------------------------
-// US2-8 Admin update user's payment method
+// US2-8 Admin update payment method
 // -------------------------------------------------------
 router.put('/admin/:id/method',   protect, authorize('admin'), adminUpdatePaymentMethod);
 
 // -------------------------------------------------------
-// US2-9 Admin cancel user's payment
+// US2-9 Admin cancel payment
 // -------------------------------------------------------
 router.put('/admin/:id/cancel',   protect, authorize('admin'), adminCancelPayment);
 
@@ -75,12 +76,15 @@ router.put('/admin/:id/cancel',   protect, authorize('admin'), adminCancelPaymen
 // -------------------------------------------------------
 router.get('/user/:id',           protect, getPaymentsByUser);
 
-// ✅ Get payment by reservationId — MUST be before /:id to avoid conflict
+// ✅ MUST come before `/:id`
 router.get('/reservation/:reservationId', protect, getPaymentByReservation);
 
-// -------------------------------------------------------
-// US2-4 User payment details — keep /:id LAST
-// -------------------------------------------------------
-router.get('/:id',                protect, getPayment);
+// ✅ MUST come before `/:id`
 router.get('/admin/all', protect, authorize('admin'), adminGetAllPayments);
+
+// -------------------------------------------------------
+// LAST: generic ID route
+// -------------------------------------------------------
+router.get('/:id', protect, getPayment);
+
 module.exports = router;
