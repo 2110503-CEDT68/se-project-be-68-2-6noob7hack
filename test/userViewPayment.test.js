@@ -228,3 +228,17 @@ describe("getPaymentsByUser controller", () => {
     });
   });
 });
+test("❌ error with no message — returns 500 'Server error' fallback", async () => {
+  const err = new Error(); // err.message = '' → falsy
+  Payment.find.mockImplementation(() => { throw err; });
+
+  const req = mockReq({ params: { id: 'user-abc' }, user: { id: 'user-abc' } });
+  const res = mockRes();
+
+  await getPaymentsByUser(req, res);
+
+  expect(res.status).toHaveBeenCalledWith(500);
+  expect(res.json).toHaveBeenCalledWith(
+    expect.objectContaining({ success: false, message: 'Server error' })
+  );
+});

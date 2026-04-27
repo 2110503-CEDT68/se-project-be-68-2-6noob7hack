@@ -182,3 +182,32 @@ describe("userCancelPayment controller", () => {
     expect(res.status).toHaveBeenCalledWith(500);
   });
 });
+test("✅ reduce true branch — slot[1] earlier than slot[0], updates min", async () => {
+  const payment = makePayment({ status: 'pending' });
+  Payment.findById.mockResolvedValue(payment);
+
+  const reservation = {
+    _id: 'reservation-001',
+    timeSlots: [
+      { startTime: new Date('2099-01-01T10:00:00Z') }, // slot[0] → initial min (later)
+      { startTime: new Date('2099-01-01T08:00:00Z') }, // slot[1] < min → true branch ✅
+    ],
+    status: 'confirmed',
+    save: jest.fn().mockResolvedValue(true),
+  };
+
+  Reservation.findById.mockReturnValue({
+    populate: jest.fn().mockResolvedValue(reservation),
+  });
+
+  payment.save = jest.fn().mockResolvedValue(true);
+
+  const req = mockReq({ params: { id: 'payment-001' }, user: { id: 'user-abc' } });
+  const res = mockRes();
+
+  await userCancelPayment(req, res);
+
+  // earliest = 08:00, still in future → cancellation proceeds
+  expect(payment.status).toBe('cancelled');
+  expect(res.status).toHaveBeenCalledWith(200);
+});
