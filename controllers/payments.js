@@ -779,7 +779,7 @@ exports.adminUpdatePaymentMethod = async (req, res) => {
         }
 
         const payment = await Payment.findById(req.params.id)
-  .populate("auditLog.changedBy", "name email"); // ✅ IMPORTANT
+  //.populate("auditLog.changedBy", "name email"); // ✅ IMPORTANT
         if (!payment) {
             return res.status(404).json({ success: false, message: 'Payment not found' });
         }
@@ -817,7 +817,7 @@ exports.adminUpdatePaymentMethod = async (req, res) => {
 exports.adminCancelPayment = async (req, res) => {
     try {
         const payment = await Payment.findById(req.params.id)
-  .populate("auditLog.changedBy", "name email"); // ✅ IMPORTANT
+  //.populate("auditLog.changedBy", "name email"); // ✅ IMPORTANT
         if (!payment) {
             return res.status(404).json({ success: false, message: 'Payment not found' });
         }
